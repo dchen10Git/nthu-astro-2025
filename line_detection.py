@@ -36,13 +36,13 @@ def detect_lines_from_table(wavelengths, flux, error, x, y, snr_thresh=3):
 def make_line_table(x, y):
     # print(f'x, y: ({x}, {y})')
 
-    subtracted_cube1 = SpectralCube.read('fits/subtracted_cube_full4.fits')
-    subtracted_cube2 = SpectralCube.read('fits/subtracted_cube_full5.fits')
-    subtracted_cube3 = SpectralCube.read('fits/subtracted_cube_full6.fits')
+    subtracted_cube1 = SpectralCube.read('../fits/subtracted_cube_full4.fits')
+    subtracted_cube2 = SpectralCube.read('../fits/subtracted_cube_full5.fits')
+    subtracted_cube3 = SpectralCube.read('../fits/subtracted_cube_full6.fits')
 
-    lines1 = detect_lines('fits/4s3d.fits', subtracted_cube1, x, y, snr_thresh=3)
-    lines2 = detect_lines('fits/5s3d.fits', subtracted_cube2, x, y, snr_thresh=3)
-    lines3 = detect_lines('fits/6s3d.fits', subtracted_cube3, x, y, snr_thresh=3)
+    lines1 = detect_lines('../fits/4s3d.fits', subtracted_cube1, x, y, snr_thresh=3)
+    lines2 = detect_lines('../fits/5s3d.fits', subtracted_cube2, x, y, snr_thresh=3)
+    lines3 = detect_lines('../fits/6s3d.fits', subtracted_cube3, x, y, snr_thresh=3)
 
     combined_lines = lines1 + lines2 + lines3
     # for lam, flux, snr_val in combined_lines:
@@ -73,7 +73,7 @@ def make_line_table(x, y):
     # Apply the filter
     clean_tbl = tbl[rows_to_keep]
 
-    clean_tbl.write(f'fits/detected_lines{x}_{y}.fits', format='fits', overwrite=True)
+    clean_tbl.write(f'../fits/detected_lines{x}_{y}.fits', format='fits', overwrite=True)
     # print(clean_tbl)
     
     print(f"Successfully saved as fits/detected_lines{x}_{y}.fits")
@@ -82,3 +82,27 @@ def make_line_table(x, y):
 # make_line_table(25,34)
 # make_line_table(35,41)
 
+def make_latex_table(x,y):
+    table = Table.read(f'../fits/detected_lines{x}_{y}.fits', format="fits")
+    # Peek at the first few rows
+    print(table[:5])
+
+    # Convert to pandas
+    df = table[:20].to_pandas()
+
+    # Export to LaTeX
+    latex_table = df.to_latex(f"../Line Tables/lines_table{x}_{y}.tex",
+    index=False,  # To not include the DataFrame index as a column in the table
+    caption="20 Detected Lines",  # The caption to appear above the table in the LaTeX document
+    position="htbp",  # The preferred positions where the table should be placed in the document ('here', 'top', 'bottom', 'page')
+    column_format="lccc",  # The format of the columns: left-aligend first column and center-aligned remaining columns as per APA guidelines
+    escape=False,  # Disable escaping LaTeX special characters in the DataFrame
+    float_format="{:0.2f}".format  # Formats floats to two decimal places
+    )
+
+    print(latex_table)
+    print(f"Saved as lines_table{x}_{y}.tex")
+        
+# make_latex_table(23,26)
+# make_latex_table(25,34)
+# make_latex_table(35,41)

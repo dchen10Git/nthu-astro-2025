@@ -5,6 +5,8 @@ from spectral_cube import SpectralCube
 import matplotlib.pyplot as plt
 from skimage.draw import line
 from helpers import get_uJy_error_cube, get_pixel
+from uncertainties import ufloat
+from uncertainties.umath import log10
 
 def find_peak_flux(fits_file, cube, error_cube, x, y, wavelength, width=0.003*u.um):
     '''
@@ -39,43 +41,36 @@ def calculate_Av(fits_file, cube, error_cube, lambda1, lambda2, x, y):
     beta_lambda1, beta_lambda2 = beta_vals[0], beta_vals[1]
 
     # Observed flux ratio
-    Fobs1, error1 = find_peak_flux(fits_file, cube, error_cube, x, y, lambda1)
+    Fobs1, error1 = find_peak_flux(fits_file, cube, error_cube, x, y, lambda1) 
     Fobs2, error2 = find_peak_flux(fits_file, cube, error_cube, x, y, lambda2)
-    R_obs = Fobs1 / Fobs2
+    if (np.isnan(Fobs1) or np.isnan(Fobs2)):
+        return np.nan, np.nan
+    uF1 = ufloat(Fobs1.value, error1.value)
+    uF2 = ufloat(Fobs2.value, error2.value)
+    R_obs = uF1 / uF2
    
     # Intrinsic flux ratio, check database (values from paper)
     R_int = 0
     if lambda1 == 1.257*u.um:
-        R_int = 1.1
+        R_int = ufloat(1.155, 0.045)
     elif lambda1 == 1.321*u.um:
-        R_int = 0.32
+        R_int = ufloat(0.32, 0.01)
     elif lambda1 == 1.533*u.um:
-        R_int = 1.25
+        R_int = ufloat(1.245, 0.025)
     elif lambda1 == 1.599*u.um:
-        R_int = 3.6
+        R_int = ufloat(3.635, 0.205)
 
     # Apply extinction formula
-    Av = (-2.5 * np.log10(R_obs / R_int)) / (beta_lambda1 - beta_lambda2)
-        
-    # Uncertainty
-    dF1 = np.sqrt(error1 ** 2 + (0.05 * Fobs1) ** 2)
-    dF2 = np.sqrt(error2 ** 2 + (0.05 * Fobs2) ** 2)
+    Av = (-2.5 * log10(R_obs / R_int)) / (beta_lambda1 - beta_lambda2)
+    
+    # print(f"A_V = {Av} mag")
     
     # SNR mask
-    snr1 = Fobs1 / dF1
-    snr2 = Fobs2 / dF2
-    # print(f"SNR1: {snr1:.2f}, SNR2: {snr2:.2f}")
-    if snr1 < 2 or snr2 < 2:
-        return np.nan, np.nan
-    
-    # Error propagation in observed ratio 
-    dR_obs = R_obs * np.sqrt((dF1/Fobs1)**2 + (dF2/Fobs2)**2)
+    print(f"SNR1: {uF1.n/uF1.s:.2f}, SNR2: {uF2.n/uF2.s:.2f}")
+    if uF1.n/uF1.s < 3 or uF2.n/uF2.s < 3:
+         return np.nan, np.nan
 
-    # Error propagation in AV
-    dAv = (2.5 / np.log(10)) * dR_obs / (R_obs * (beta_lambda1 - beta_lambda2)) # IS THIS FORMULA RIGHT???
-    # print(f"AV = {Av:.2f} ± {dAv:.2f} mag")
-    
-    return float(Av), dAv
+    return Av.n, Av.s
 
 centers_x = [25, 26, 27]
 centers_y = [33, 38, 44]
@@ -89,7 +84,7 @@ centers_y = [33, 38, 44]
 # Av4 = calculate_Av('fits/4s3d.fits', 1.599*u.um, 1.712*u.um)
 
 def plot_Avs(fits_file):
-    cube = SpectralCube.read('fits/subtracted_cube_full4.fits')
+    cube = SpectralCube.read('../fits/subtracted_cube_full4.fits')
     error_cube = get_uJy_error_cube(fits_file)
     ra = 69.896675   * u.degree
     dec = 25.69561666667 * u.degree
@@ -107,7 +102,7 @@ def plot_Avs(fits_file):
     labels = [f'{lines[i][0]}/{lines[i][1]}' for i in range(len(lines))]
     distances = np.sqrt((cc - x1)**2 + (rr - y1)**2)
 
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(9, 5))
 
     # Iterate over all line combinations
     for i in range(len(lines)):
@@ -118,7 +113,7 @@ def plot_Avs(fits_file):
                 plt.errorbar(distances[k], Avs[k][0], yerr=Avs[k][1], fmt='o', color=colors[i], label=labels[i])
             else:
                 plt.errorbar(distances[k], Avs[k][0], yerr=Avs[k][1], fmt='o', color=colors[i])
-    
+
     plt.xlabel('Distance from star (pixels)', fontsize=14)
     plt.ylabel('Visual Extinction $A_V$ (mag)', fontsize=14)
     plt.title('Extinction $A_V$ Along Jet Axis from Different Line Ratios', fontsize=16)
@@ -128,7 +123,7 @@ def plot_Avs(fits_file):
     plt.tight_layout()
     plt.show()
     
-plot_Avs('fits/4s3d.fits')
+plot_Avs('../fits/4s3d.fits')
 
 
 

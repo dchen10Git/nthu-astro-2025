@@ -125,10 +125,10 @@ def write_cube(fits_file, center, fit_width=0.005*u.um, name='fits/normal_cube.f
     cube.write(name, format='fits', overwrite=True)
     print("Successfully saved")
 
-fits_file = 'fits/6s3d.fits'
+fits_file = '../fits/6s3d.fits'
 cube = get_uJy_cube(fits_file)
 cont_cube = full_spec_continuum(fits_file, 0.06*u.um)
 sub_cube = cube - cont_cube
 # norm_cube = (cube - cont_cube) / cont_cube
-sub_cube.write('fits/subtracted_cube_full6.fits', format='fits', overwrite=True)
+sub_cube.write('../fits/subtracted_cube_full6.fits', format='fits', overwrite=True)
 print("Successfully saved")

@@ -39,6 +39,8 @@ def plot_pv_diagram(fits_file, center, moment0_width, fit_width, distance=140*u.
     ra = 69.896675 * u.degree
     dec = 25.69561666667 * u.degree
     x1, y1 = get_pixel(cube, ra, dec)
+    x1 -= 2
+    y1 -= 1 # NOTE: Not real
     paths = [make_path(x1, y1, 28, 50, centers[i], 6) for i in range(3)]
     pvdiagrams = [extract_pv_slice(cube=vcube, path=paths[i], spacing=0.5) for i in range(3)]   
 
@@ -47,14 +49,14 @@ def plot_pv_diagram(fits_file, center, moment0_width, fit_width, distance=140*u.
 
     # Flux density map (leftmost subplot)
     ax = fig.add_subplot(gs[0, 0], projection=vcube.wcs.celestial)
-    slice = fits.open("fits/slice2d.fits")[0].data
+    slice = fits.open("../fits/slice2d.fits")[0].data
     ax.imshow(np.log10(slice), origin='lower', cmap='inferno', vmin=0)
     for i in range(3):
         paths[i].show_on_axis(ax, spacing=0.5, edgecolor="cyan", linewidth=0.75)
     ax.plot(x1, y1, marker='*', color='black')
     ax.set_facecolor('black')
-    ax.set_xlabel(f"RA", fontsize=10)
-    ax.set_ylabel(f"Dec", fontsize=10)
+    ax.set_xlabel(f"RA", fontsize=12)
+    ax.set_ylabel(f"Dec", fontsize=12)
 
     # PV diagrams
     for i in range(3):
@@ -77,20 +79,20 @@ def plot_pv_diagram(fits_file, center, moment0_width, fit_width, distance=140*u.
         ax1 = ax.coords[1]
         ax1.set_format_unit(u.km / u.s)
 
-        ax.set_ylabel("Velocity [km/s]", fontsize=10)
+        ax.set_ylabel("Velocity [km/s]", fontsize=12)
         if i != 0:
             ax.tick_params(axis='y', labelleft=False)
-        ax.set_xlabel("Offset (\")", fontsize=10) 
+        ax.set_xlabel("Offset (\")", fontsize=12) 
         ax.set_aspect(0.8)
 
     # Colorbar
     cax = fig.add_subplot(gs[0, 4])
     cb = plt.colorbar(mappable=im, cax=cax)
-    cb.set_label('$\log_{10} F_\lambda \, (\mu Jy)$', fontsize=10)
+    cb.set_label('$\log_{10} F_\lambda \, (\mu Jy)$', fontsize=12)
 
     # Global title
-    fig.suptitle(f"PV Diagrams ($\lambda = $ {center}, closest to furthest)", fontsize=12)
+    # fig.suptitle(f"PV Diagrams ($\lambda = $ {center}, closest to furthest)", fontsize=12)
     fig.subplots_adjust(top=0.88, bottom=0.15)
     plt.show()
     
-plot_pv_diagram('fits/1s3d.fits', 1.644*u.um, moment0_width=0.0015*u.um, fit_width=0.005*u.um)
+plot_pv_diagram('../fits/4s3d.fits', 1.644*u.um, moment0_width=0.0015*u.um, fit_width=0.005*u.um)

@@ -6,7 +6,6 @@ from astropy.nddata import StdDevUncertainty
 import astropy.units as u
 from astropy.table import Table
 import numpy as np
-import re
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from dust_extinction.parameter_averages import G23
@@ -24,11 +23,11 @@ from helpers import pixar_sr, cdelt3
 #     raise ValueError("No v=0-0 transitions found in your line list!")
 
 # lines, fluxes, errors = zip(*filtered)
-
-pixar = pixar_sr('fits/6s3d.fits').value
+fits_file = '../fits/6s3d.fits'
+pixar = pixar_sr(fits_file).value
 c = 1 / (pixar) / (10e9) # NOTE is this right???
 
-cdelt3 
+cdelt = cdelt3(fits_file)
 
 # Convert cdelt3 (wavelength delta) to Hertz using Doppler formula
 # Well, do the integration (do moment 0)

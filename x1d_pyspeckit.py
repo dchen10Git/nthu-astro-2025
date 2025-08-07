@@ -3,7 +3,7 @@ import pyspeckit
 import numpy as np
 import matplotlib.pyplot as plt
 
-hdul = fits.open('fits/1x1d.fits')
+hdul = fits.open('../fits/1x1d.fits')
 #hdul.info()
 
 data = hdul['EXTRACT1D'].data

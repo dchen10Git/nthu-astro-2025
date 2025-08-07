@@ -79,65 +79,103 @@ def plot_spec(wavelengths, flux, error=None, x=None, y=None, lines=None, databas
         ax.fill_between(wavelengths, (flux - error).value, (flux + error).value, step='mid', alpha=0.4, color='blue')
     
         if lines is not None and database_lines is not None:
-            # Gets all rows containing H2
-            H2_table = database_lines[['H2' in s for s in database_lines['species_list']]]
-            H2_wavelengths = H2_table['rest_wavelength']
+            # Define the species patterns, colors, and regexes
+            species_info = [
+                ("H2", "red", r"(H2[^',]*)"),
+                ("Fe I]", "greenyellow", r"(Fe I\][^,]*)"),
+                ("[Fe II]", "green", r"(\[Fe II\][^,]*)"),
+                ("[Fe III]", "darkseagreen", r"(\[Fe III\][^,]*)"),
+                ("H I", "orange", r"(H I[^',]*)"),
+                ("He", "purple", r"(He[^',]*)"),  # He I
+                ("S I", "teal", r"(He[^',]*)"),
+                ("[S III]", "indigo", r"(He[^',]*)"),
+                ("O I", "crimson", r"(He[^',]*)"),
+                ("[O III]", "deeppink", r"(He[^',]*)")
+            ]
             
-            # Gets all rows containing [Fe II]
-            FeII_table = database_lines[['[Fe II]' in s for s in database_lines['species_list']]]
-            FeII_wavelengths = FeII_table['rest_wavelength']
-            
-            # Gets all rows containing H I
-            HI_table = database_lines[['H I' in s for s in database_lines['species_list']]]
-            HI_wavelengths = HI_table['rest_wavelength']
-            
-            # Gets all rows containing He I (note this is marked as He in the lines table)
-            HeI_table = database_lines[['He' in s for s in database_lines['species_list']]]
-            HeI_wavelengths = HeI_table['rest_wavelength']
-            
+            # Precompute tables and wavelengths for each species
+            species_tables = {}
+            for key, color, regex in species_info:
+                table = database_lines[[key in s for s in database_lines['species_list']]]
+                species_tables[key] = {
+                    "table": table,
+                    "wavelengths": table['rest_wavelength'],
+                    "color": color,
+                    "regex": regex
+                }
+                # print(table)
+
+            # Initialize tables for each species (will store matched lines)
+            matched_tables = {}
+
+            # Try to match each detected line with a reference line
             for wav, fluxes, snr in lines:
-                H2_mask = np.abs(H2_wavelengths - wav) <= 0.001
-                FeII_mask = np.abs(FeII_wavelengths - wav) <= 0.001
-                HI_mask = np.abs(HI_wavelengths - wav) <= 0.001
-                HeI_mask = np.abs(HeI_wavelengths - wav) <= 0.001
-                
-                if np.any(H2_mask):
-                    transition_label = H2_table['transition_labels'][H2_mask]
-                    label_str = str(*transition_label)
-                    match = re.search(r"(H2[^',]*)", label_str) # Regex for displaying only H2 line transition info
-                    ax.plot(wav, fluxes + fluxes / snr + 1, color='r', marker='v', markersize=4)
-                    ax.text(wav, fluxes + fluxes / snr + 2, f"{wav:.3f}, " + match.group(1), rotation=90, verticalalignment='bottom', horizontalalignment='center', fontsize=8, color='black')
+                matched = False
+                for key, info in species_tables.items():
+                    mask = np.abs(info["wavelengths"] - wav) <= 0.001
+    
+                    if np.any(mask):
+                        masked_wavs = info["table"]['rest_wavelength'][mask]
 
-                    # Search for 0-0 transitions for rotational diagram
-                    match = re.search(r"v=0-0", label_str)
-                    if match:
-                        print(fluxes, label_str)
-                    
-                    
-                elif np.any(FeII_mask):
-                    transition_label = FeII_table['transition_labels'][FeII_mask]
-                    label_str = str(*transition_label)
-                    match = re.search(r"(\[Fe II\][^,]*)", label_str) # Regex for displaying only [Fe II] line transition info
-                    ax.plot(wav, fluxes + fluxes / snr + 1, color='green', marker='v', markersize=4)
-                    ax.text(wav, fluxes + fluxes / snr + 2, f"{wav:.3f}, " + match.group(1), rotation=90, verticalalignment='bottom', horizontalalignment='center', fontsize=8, color='black')
+                        # Makes sure for this species that there are no dupes
+                        assert(len(masked_wavs) == 1)
+                        
+                        db_wav = masked_wavs[0]
+                        
+                        ax.plot(wav, fluxes + fluxes / snr + 1, color=info["color"], marker='v', markersize=4)
+                        
+                        transition_label = info["table"]['transition_labels'][mask]
+                        label_str = str(*transition_label)
+                        
+                        match = re.search(info["regex"], label_str)
+                        assert(match)
+                        ax.text(wav, fluxes + fluxes / snr + 2, f"{wav:.3f}, " + match.group(1),
+                                rotation=90, va='bottom', ha='center', fontsize=8, color='black')
+                        
+                        line_info = {'wav_db': db_wav, 'flux': fluxes, 'transition_label': match.group(1)}
+                        matched_tables.setdefault(key, []).append(line_info) # setdefault makes the key with [] if not in the dict yet
+    
+                        matched = True
+                        break
                 
-                elif np.any(HI_mask):
-                    transition_label = HI_table['transition_labels'][HI_mask]
-                    label_str = str(*transition_label)
-                    match = re.search(r"(H I[^',]*)", label_str) # Regex for displaying only H I line transition info
-                    ax.plot(wav, fluxes + fluxes / snr + 1, color='orange', marker='v', markersize=4)
-                    ax.text(wav, fluxes + fluxes / snr + 2, f"{wav:.3f}, " + match.group(1), rotation=90, verticalalignment='bottom', horizontalalignment='center', fontsize=8, color='black')
-                
-                elif np.any(HeI_mask):
-                    transition_label = HeI_table['transition_labels'][HeI_mask]
-                    label_str = str(*transition_label)
-                    match = re.search(r"(He[^',]*)", label_str) # Regex for displaying only He I line transition info
-                    ax.plot(wav, fluxes + fluxes / snr + 1, color='purple', marker='v', markersize=4)
-                    ax.text(wav, fluxes + fluxes / snr + 2, f"{wav:.3f}, " + match.group(1), rotation=90, verticalalignment='bottom', horizontalalignment='center', fontsize=8, color='black')
-
-                else:
-                    # Plots non-H2 lines
+                # Plot all other lines
+                if not matched:
                     ax.plot(wav, fluxes + fluxes / snr + 1, color='black', marker='v', markersize=2)
+                
+                # Convert each species' list of dicts into an Astropy Table
+                
+                # print(matched_tables)
+                
+                
+                # Search for H2 0-0 transitions for rotational diagram
+                # match = re.search(r"v=0-0", label_str)
+                # if match:
+                #     print(fluxes, label_str)
+                
+            matched_tables = {k: Table(rows=v) for k, v in matched_tables.items() if v}
+            
+            for key in matched_tables:
+                table = matched_tables[key]
+                print(table)
+                # Export to LaTeX 
+                df = table.to_pandas()
+                
+                df = df.rename(columns={
+                    "wav_db": "Wavelength ($\\mu$m)", # \\ so Python reads as \
+                    "flux": "Flux ($\\mu$Jy)",
+                    "transition_label": "Transition"
+                })
+                latex_table = df.to_latex(f"../Line Tables/lines_table_{key}.tex",
+                index=False,  # To not include the DataFrame index as a column in the table
+                caption=f"Detected {key} Lines",  # The caption to appear above the table in the LaTeX document
+                position="htbp",  # The preferred positions where the table should be placed in the document ('here', 'top', 'bottom', 'page')
+                column_format="lccc",  # The format of the columns: left-aligend first column and center-aligned remaining columns as per APA guidelines
+                escape=False,  # Disable escaping LaTeX special characters in the DataFrame
+                float_format="{:0.2f}".format  # Formats floats to two decimal places
+                )
+
+                print(latex_table)
+                print(f"Saved as lines_table_{key}.tex")
             
             # Prints database values not detected
             detected = 0
@@ -177,9 +215,9 @@ Available spaxels:
 '''
 
 pixels = [(25, 34)]
-table = Table.read(f'fits/merged_spectrum{pixels[0][0]}_{pixels[0][1]}.fits')
-detected_lines = Table.read(f'fits/detected_lines{pixels[0][0]}_{pixels[0][1]}.fits')
-database_table = Table.read('fits/grouped_lines_summary.fits')
+table = Table.read(f'../fits/merged_spectrum{pixels[0][0]}_{pixels[0][1]}.fits')
+detected_lines = Table.read(f'../fits/detected_lines{pixels[0][0]}_{pixels[0][1]}.fits')
+database_table = Table.read('../fits/grouped_lines_summary.fits')
 
 plot_spec(table['wavelength'], table['flux'], table['error'], pixels[0][0], pixels[0][1], detected_lines, database_table)
 
