@@ -29,13 +29,13 @@ def perpendicular(x_start, y_start, x_end, y_end, center, segment_length=6):
 
     return [start_pt, end_pt]
 
-fits_file = 'fits/5s3d.fits'
-lambda_0 = 2.8025*u.um
-cube = SpectralCube.read("fits/normal_cube5.fits") # note this is unitless
+fits_file = '../fits/4s3d.fits'
+lambda_0 = 1.644 *u.um # 1.644 for [Fe II], 2.8025 for H2
+cube = SpectralCube.read("../fits/normal_cube4.fits") # note this is unitless
 vcube = cube.with_spectral_unit(u.km/u.s, velocity_convention='optical',rest_value=lambda_0)
 
 vel_axis = vcube.spectral_axis
-target_velocity = -110 * u.km/u.s # -150 for Fe II, -110 for H2
+target_velocity = -150 * u.km/u.s # -150 for Fe II, -110 for H2
 vel_index = np.argmin(np.abs(vel_axis - target_velocity))
 
 flux_slice = vcube.filled_data[vel_index, :, :]
@@ -106,8 +106,8 @@ ax.plot(binned_distance, binned_flux, drawstyle='steps-mid', color='black') # Sp
 def gaussian(x, amp, mean, sigma):
     return amp * np.exp(-(x - mean)**2 / (2 * sigma**2))
 
-peak_ranges = [(15,21), (24,28), (35,41)] # 1.644
-peak_ranges = [(23,27), (32,36), (42,45)] # 2.803
+peak_ranges = [(15,21), (24,28), (35,41), (42,46)] # for 1.644
+# peak_ranges = [(23,27), (32,36), (42,45)] # for 2.803
 peak_distances = []
 for i, (start, end) in enumerate(peak_ranges):
     x_vals = binned_distance[start:end]
@@ -127,9 +127,9 @@ for i, (start, end) in enumerate(peak_ranges):
     except RuntimeError:
         print(f"Could not fit peak {i+1}")
 
-ax.set_xlabel("Distance from star (pixels)", fontsize=12)
+ax.set_xlabel("Distance from star (pixels)", fontsize=13)
 ax.set_xlim(0,25)
-ax.set_ylabel("$F_{line}/F_{cont}$", fontsize=12)
+ax.set_ylabel("$F_{line}/F_{cont}$", fontsize=13)
 ax.set_title(f"Normalized Flux Along Line (v={target_velocity})")
 ax.grid(True)
 
@@ -152,8 +152,8 @@ for p in peak_pixels:
 
 ax.plot(x1, y1, marker='*', color='gold')
 ax.set_facecolor('black')
-ax.set_xlabel("RA", fontsize=12)
-ax.set_ylabel("Dec", fontsize=12)
+ax.set_xlabel("RA", fontsize=13)
+ax.set_ylabel("Dec", fontsize=13)
 ax.set_title(f'Flux Density Map (v = {target_velocity})')
 
 plt.colorbar(im, ax=ax, label='$\log_{10} F_\lambda \, (\mu Jy)$')

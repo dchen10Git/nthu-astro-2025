@@ -4,43 +4,44 @@ from pdrtpy.plot.excitationplot import ExcitationPlot
 import pdrtpy.pdrutils as utils
 from astropy.nddata import StdDevUncertainty
 import astropy.units as u
+import astropy.constants as const
 from astropy.table import Table
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-from dust_extinction.parameter_averages import G23
-from astropy.units.quantity import Quantity
+import numpy as np
 from helpers import pixar_sr, cdelt3
 
-# # Replace with your actual flux and error values
-# lines = []
-# fluxes = np.array([1.2e-15, 3.5e-15, 2.1e-15, 2.8e-15, 1.5e-15, 1.1e-15, 0.8e-15, 0.5e-15])  # erg/s/cm^2
-# errors = np.array([0.2e-15] * len(lines))  # uncertainties
-
-# # Filter for v=0-0 transitions of H2
-# filtered = [(line, f, e) for line, f, e in zip(lines, fluxes, errors) if re.search(r'H2.*v=0-0', line)]
-# if not filtered:
-#     raise ValueError("No v=0-0 transitions found in your line list!")
-
-# lines, fluxes, errors = zip(*filtered)
 fits_file = '../fits/6s3d.fits'
-pixar = pixar_sr(fits_file).value
-c = 1 / (pixar) / (10e9) # NOTE is this right???
-
+pixels = [(35, 41)]
+table = Table.read(f'../fits/merged_spectrum{pixels[0][0]}_{pixels[0][1]}.fits') # this is the full subtracted cube in uJy
+wavelengths = table['wavelength']
+fluxes = table['flux']
+pixar = pixar_sr(fits_file)
 cdelt = cdelt3(fits_file)
 
-# Convert cdelt3 (wavelength delta) to Hertz using Doppler formula
-# Well, do the integration (do moment 0)
-# dv/c = d(nu)/nu = dλ/λ
 
-intensity = dict()
-intensity['H200S8'] = 76.16743412 * c
-intensity['H200S9'] = 121.11178675 * c
-intensity['H200S10'] = 31.6649388 * c
-intensity['H200S11'] = 50.8594412 * c
+# Do the integration, then convert cdelt3 (wavelength delta) to Hertz using Doppler formula
+# d(nu)/nu = dλ/λ
+
+H2wavelengths = {}
+H2wavelengths['H200S8'] = 5.0529 * u.um
+H2wavelengths['H200S9'] = 4.6947 * u.um
+H2wavelengths['H200S10'] = 4.4096 * u.um
+H2wavelengths['H200S11'] = 4.1810 * u.um
 # 12 is missing due to IFU gap
-intensity['H200S13'] = 20.69110752 * c
+H2wavelengths['H200S13'] = 3.8464 * u.um
 
+intensity = {}
+# We take the flux values within ±3 of the peak and get the integral
+for key in H2wavelengths:
+    wav = H2wavelengths[key]
+    delta_nu = (const.c / wav**2) * cdelt
+    delta_nu = delta_nu.to(u.Hz)
+    
+    closest_idx = np.argmin(np.abs(wavelengths - wav))
+    start = max(closest_idx - 3, 0)
+    end = min(closest_idx + 4, len(wavelengths))  # +4 because slicing is exclusive
+    intensity[key] = np.sum(fluxes[start:end]) * u.uJy * u.um * delta_nu / (pixar * cdelt)
+    
 a = []
 for i in intensity:
     # For this example, set a largish uncertainty on the intensity.
@@ -51,13 +52,13 @@ for i in intensity:
     
 h = H2ExcitationFit(a)# Use pdrtpy to compute column densities
 
-print(h.column_densities(line=False, norm=False))
+# print(h.column_densities(line=False, norm=False))
 
 hplot = ExcitationPlot(h,"H_2")
 h.run()
 
 # make a plot showing the fit
-hplot.ex_diagram(show_fit=True, xmin=5000, xmax=20000, ymin=20, ymax=60)
+hplot.ex_diagram(show_fit=True, xmin=5000, xmax=20000, ymin=6, ymax=24)
 
 plt.show()
 
