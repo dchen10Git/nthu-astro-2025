@@ -11,7 +11,7 @@ from spectral_cube import SpectralCube
 
 from helpers import filter_bad, get_uJy_cube
 
-hdulist = fits.open('fits/1s3d.fits')  
+hdulist = fits.open('../fits/1s3d.fits')  
 cube = get_uJy_cube(hdulist)
 
 # Rest wavelength ([Fe II] 1.644 µm)
