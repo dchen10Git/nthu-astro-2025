@@ -1,11 +1,117 @@
+import numpy as np
 from spectral_cube import SpectralCube
 import astropy.units as u
 from astropy.io import fits
-import numpy as np
-from helpers import cdelt3
-from moment0 import moment0
-from specutils_fit import specutils_linear_fit
+from astropy.modeling import models
+from helpers import get_uJy_per_um_cube, get_uJy_cube, cdelt3
+from specutils import Spectrum1D
+from specutils.fitting import fit_generic_continuum
 from scipy.interpolate import griddata
+
+def moment0(fits_file, center, width, cube=None):
+    '''
+    Takes either a fits file, or spectral cube (units uJy/um), 
+    and creates a 2D moment 0 map at a given center and width.
+    '''
+    # Gets spectral cube if not provided
+    if cube is None:
+        cube = get_uJy_per_um_cube(fits_file)
+    
+    assert cube.unit == u.uJy/u.um
+    
+    delta = (width / 2)
+    
+    # Extract subcube in the window
+    subcube = cube.spectral_slab(center - delta, center + delta)
+
+    # Calculate moment 0 (sum along spectral axis) in flux units
+    moment0_map = subcube.moment(order=0)  # This integrates flux along spectral axis
+    return moment0_map # this is a 2D map with values
+
+def specutils_linear_fit(fits_file, center, width, slice=False):
+    """
+    Fit a linear continuum in each spaxel of a SpectralCube using specutils.
+    """
+    cube = get_uJy_cube(fits_file)
+    delta = (width / 2)
+    wavelengths = cube.spectral_axis
+    nz, ny, nx = cube.shape
+    
+    subcube = cube.spectral_slab(center-delta, center+delta)
+    sub_wavelengths = subcube.spectral_axis
+
+    # Prepare output cube
+    continuum_cube = np.full((nz, ny, nx), np.nan) * u.uJy
+
+    # Loop through each spaxel
+    for y in range(ny):
+        for x in range(nx):
+            flux = subcube[:, y, x]
+
+            # need at least 3 valid points for model
+            if np.sum(np.isfinite(flux)) < 3:
+                continue  
+
+            try:
+                spectrum = Spectrum1D(flux=flux, spectral_axis=sub_wavelengths) # sub_wavelengths so fit stays in window
+                # Changing the median window allows for better skipping of peak
+                model = fit_generic_continuum(spectrum, 11, model=models.Linear1D()) 
+                
+                fitted_flux = model(wavelengths)
+                continuum_cube[:, y, x] = fitted_flux
+            except Exception:
+                continue
+    
+    cont_spec_cube = SpectralCube(data=continuum_cube, wcs=cube.wcs) 
+    if slice:
+        i_closest = np.argmin(np.abs(wavelengths - center))
+        return cont_spec_cube[i_closest,:,:]
+        
+    return cont_spec_cube
+
+def full_spec_continuum(fits_file, window_width=0.1*u.um):
+    """
+    Compute a full-spectrum continuum cube by fitting linear models in small wavelength windows.
+    """
+    cube = get_uJy_cube(fits_file)
+    wavelengths = cube.spectral_axis
+    nz, ny, nx = cube.shape
+
+    # Output arrays
+    continuum_sum = np.zeros((nz, ny, nx)) * u.uJy
+
+    start = wavelengths[0]
+    end = wavelengths[-1]
+
+    current = start
+
+    while current <= end:
+        if current + window_width > end:
+            current = end - window_width # so that last fit is not broken
+        center = current + window_width / 2
+        print(f"Fitting window from {current:.5f} to {(current + window_width):.5f}")
+
+        try:
+            partial_cube = specutils_linear_fit(fits_file, center, width=window_width)
+            slab = partial_cube.spectral_slab(center - window_width/2, center + window_width/2)
+    
+            # Find the spectral indices in the full cube that correspond to the partial_cube
+            slab_indices = np.where(np.isin(cube.spectral_axis, slab.spectral_axis))[0] 
+            for i_slab, i_full in enumerate(slab_indices):
+                continuum_sum[i_full, :, :] = slab[i_slab, :, :]
+            
+        except Exception as e:
+            print(f"Window at {center:.5f} failed: {e}")
+            pass
+        
+        if current + window_width < end:
+            current += window_width 
+        else:
+            break
+
+    continuum_cube = SpectralCube(data=continuum_sum, wcs=cube.wcs)
+
+    return continuum_cube
 
 def snr_mask(fits_file, slice, center, threshold=3):
     '''
